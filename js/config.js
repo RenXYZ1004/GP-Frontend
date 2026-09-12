@@ -38,6 +38,7 @@ export const APPWRITE_DATABASE_ID = 'gatepass';
 // Function ids, as declared in the backend's appwrite.json.
 export const FN_SUBMIT_APPLICATION = 'submit-application';
 export const FN_SEND_EMAIL = 'send-email';
+export const FN_SUBMIT_TGP = 'submit-tgp';
 
 // The one and only login page. Everything that needs a login sends the
 // user here — there is no second, in-app login form.

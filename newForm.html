@@ -905,13 +905,10 @@
   /* Load active gates from the API and rebuild the checkbox group dynamically. */
   async function loadGates() {
     try {
-      var url = await apiEndpoint();
-      var res = await fetch(url + '?action=getGates&_t=' + Date.now(), { cache: 'no-store' });
-      var json = await res.json();
-      if (!json.success || !json.data || !json.data.length) return;
-      var active = json.data.filter(function(g) { return (g.Status || 'active').toLowerCase() === 'active'; });
+      var api = await import("./js/publicApi.js");
+      var active = await api.listGates();
       if (!active.length) return;
-      ALL_GATES = active.map(function(g) { return g.GateName; });
+      ALL_GATES = active;
       var group = $('gateGroup');
       if (!group) return;
       group.innerHTML = ALL_GATES.map(function(name) {
@@ -1299,43 +1296,17 @@
 
   var SUBMIT_ACTION = "submitApplication";
 
-  /* The endpoint lives in js/config.js so it is defined in exactly one place.
-     Loaded on demand: under Apps Script hosting that file is not served, and
-     the google.script.run route does not need it. */
-  async function apiEndpoint() {
-    try {
-      var cfg = await import("./js/config.js");
-      if (cfg && cfg.SHEETS_API_URL) return cfg.SHEETS_API_URL;
-    } catch (_) { }
-    throw new Error(
-      "Could not load the application settings. Refresh the page and try again."
-    );
-  }
+  /* The permanent gatepass application.
 
+     Posts to the submit-application Appwrite function rather than writing
+     to the database: the applicant is not signed in, and the Pass ID has
+     to be allocated without two simultaneous applications receiving the
+     same number. Neither is something a browser can be trusted with.
+
+     Loaded on demand so the form still renders if the module fails. */
   async function submitViaApi(data) {
-    var endpoint = await apiEndpoint();
-    var res;
-    try {
-      res = await fetch(endpoint + "?action=" + SUBMIT_ACTION, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(data)
-      });
-    } catch (_) {
-      throw new Error(
-        "Could not reach the server. Check your internet connection and try again."
-      );
-    }
-    if (!res.ok) {
-      throw new Error("The server returned HTTP " + res.status + ". Please try again.");
-    }
-    try {
-      return await res.json();
-    } catch (_) {
-      throw new Error(
-        "The server sent a reply the form could not read. Please try again, or contact the school office."
-      );
-    }
+    var api = await import("./js/publicApi.js");
+    return api.submitApplication(data);
   }
 
   function handleSubmitResult(res, btn) {

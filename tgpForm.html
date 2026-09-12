@@ -683,31 +683,15 @@
     return problems;
   }
 
-  /* ── API submission ── */
-  async function apiEndpoint() {
-    try {
-      var cfg = await import('./js/config.js');
-      if (cfg && cfg.SHEETS_API_URL) return cfg.SHEETS_API_URL;
-    } catch (_) { }
-    throw new Error('Could not load the application settings. Refresh the page and try again.');
-  }
+  /* ── API submission ──
 
+     Posts to the submit-tgp Appwrite function. A parent is not signed in,
+     and temporary_passes only lets staff create rows — otherwise anyone
+     could mint themselves a gate pass. The function files the request as
+     "pending" and a secretary approves it. */
   async function submitTGP(data) {
-    var endpoint = await apiEndpoint();
-    var res;
-    try {
-      res = await fetch(endpoint + '?action=addTGP', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(data)
-      });
-    } catch (_) {
-      throw new Error('Could not reach the server. Check your internet connection and try again.');
-    }
-    if (!res.ok) throw new Error('The server returned HTTP ' + res.status + '. Please try again.');
-    try { return await res.json(); } catch (_) {
-      throw new Error('The server sent a reply the form could not read. Please try again, or contact the school office.');
-    }
+    var api = await import('./js/publicApi.js');
+    return api.submitTGP(data);
   }
 
   /* ── Submit ── */
@@ -804,18 +788,15 @@
   /* Load active gates from the API and rebuild the gate dropdown dynamically. */
   async function loadGates() {
     try {
-      var url = await apiEndpoint();
-      var res = await fetch(url + '?action=getGates&_t=' + Date.now(), { cache: 'no-store' });
-      var json = await res.json();
-      if (!json.success || !json.data || !json.data.length) return;
-      var active = json.data.filter(function(g) { return (g.Status || 'active').toLowerCase() === 'active'; });
+      var api = await import('./js/publicApi.js');
+      var active = await api.listGates();
       if (!active.length) return;
       var sel = $('gate');
       if (!sel) return;
       var current = sel.value;
-      sel.innerHTML = '<option value="">-- Select Gate --</option>' + active.map(function(g) {
-        var safe = g.GateName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-        var selected = current === g.GateName ? ' selected' : '';
+      sel.innerHTML = '<option value="">-- Select Gate --</option>' + active.map(function(name) {
+        var safe = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+        var selected = current === name ? ' selected' : '';
         return '<option value="' + safe + '"' + selected + '>' + safe + '</option>';
       }).join('');
     } catch (_) { /* fall back to defaults already in the DOM */ }

@@ -673,30 +673,17 @@
 
   <script src="js/lib/appwrite.js"></script>
   <script type="module">
-    /* ── STAFF LOGIN ──────────────────────────────────────────────── */
-    import { SHEETS_API_URL as SHEETS_API, APP_PAGE, STORAGE_KEYS } from './js/config.js';
+    /* ── STAFF LOGIN ──────────────────────────────────────────────────
+       Appwrite verifies the password and issues the session.
 
-    async function hashPassword(pw) {
-      if (!window.crypto || !window.crypto.subtle) {
-        throw new Error(
-          'Secure login is unavailable over plain HTTP. Open this site via HTTPS or localhost.'
-        );
-      }
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
-    async function fetchUsers() {
-      try {
-        const res = await fetch(`${SHEETS_API}?action=getUsers&_t=${Date.now()}`, { cache: 'no-store' });
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(json.data));
-          return json.data;
-        }
-      } catch (_) { }
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.users) || '[]');
-    }
+       What used to sit here — downloading every user row and comparing
+       SHA-256 hashes in this file — is gone. It put every staff password
+       hash into the page where DevTools could read it, and let the browser
+       decide its own role. The role now comes from the profiles table, and
+       permissions are enforced server-side, so a tampered role changes
+       what the menu draws and nothing more.                            */
+    import { APP_PAGE, STORAGE_KEYS } from './js/config.js';
+    import AuthService from './js/services/AuthService.js';
 
     const loginModal = document.getElementById('login-modal');
     const loginModalBox = document.getElementById('login-modal-box');
@@ -752,42 +739,32 @@
       loginError.classList.remove('show');
 
       try {
-        const [users, hashedPw] = await Promise.all([fetchUsers(), hashPassword(password)]);
+          // Throws with a message fit for the screen: wrong credentials,
+          // an account with no profile, or one that is not active.
+          const profile = await AuthService.signIn(username, password);
 
-        if (users.length === 0) {
-          showLoginError('No user accounts found. Please contact your administrator.');
-          btn.disabled = false; btn.textContent = 'Secure Login'; return;
-        }
+          // The cached payload only decides what the app shell draws;
+          // app.html revalidates it against Appwrite on load.
+          localStorage.setItem(STORAGE_KEYS.session, JSON.stringify({
+            username: profile.username,
+            name: profile.name,
+            role: profile.role,
+            gate: profile.gate || '',
+            accountId: profile.accountId,
+            loginTime: new Date().toISOString(),
+            lastActivity: Date.now()
+          }));
+          sessionStorage.setItem(STORAGE_KEYS.browserAlive, '1');
 
-        const user = users.find(u =>
-          u.username === username &&
-          (u.password === hashedPw || u.password === password) &&
-          (!u.status || u.status.toLowerCase() === 'active')
-        );
+          btn.textContent = 'Redirecting…';
+          window.location.replace(APP_PAGE);
 
-        if (!user) {
-          showLoginError('Invalid username or password.');
+        } catch (err) {
+          console.error('Login failed:', err);
+          showLoginError((err && err.message) || 'Could not sign in. Please try again.');
           document.getElementById('l-password').value = '';
-          btn.disabled = false; btn.textContent = 'Secure Login'; return;
+          btn.disabled = false; btn.textContent = 'Secure Login';
         }
-
-        localStorage.setItem(STORAGE_KEYS.session, JSON.stringify({
-          username: user.username, name: user.name, role: user.role,
-          gate: user.gate || '', loginTime: new Date().toISOString(), lastActivity: Date.now()
-        }));
-        sessionStorage.setItem(STORAGE_KEYS.browserAlive, '1');
-        btn.textContent = 'Redirecting…';
-        window.location.replace(APP_PAGE);
-
-      } catch (err) {
-        console.error('Login failed:', err);
-        showLoginError(
-          /secure login is unavailable/i.test(err && err.message ? err.message : '')
-            ? err.message
-            : 'Network error. Please try again.'
-        );
-        btn.disabled = false; btn.textContent = 'Secure Login';
-      }
     });
 
     document.addEventListener('keydown', e => {

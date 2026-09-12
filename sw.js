@@ -11,7 +11,7 @@
 //     no longer abort the whole install (cache.addAll is all-or-nothing).
 // ════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'pgp-cache-v3.0.0';
+const CACHE_NAME = 'pgp-cache-v3.0.1';
 
 // Files that make up the app shell — always revalidated against the network.
 //
@@ -31,6 +31,7 @@ const APP_SHELL = [
   './js/main.js',
   './js/landing.js',
   './js/config.js',
+  './js/publicApi.js',
   './js/utils.js',
   './js/icons.js',
 

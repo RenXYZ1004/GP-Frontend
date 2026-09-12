@@ -33,10 +33,10 @@ export default class UsersView {
         <div class="card-head">
           <div>
             <div class="card-title">User Management</div>
-            <div class="card-sub">Manage system access and roles (Synced from Google Sheets)</div>
+            <div class="card-sub">Manage system access and roles</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="alert('Please add or edit users directly in the Google Sheet \\'users\\' tab.')">
-            ${Icons['plus'](14)} Manage in Sheets
+          <button class="btn btn-primary btn-sm" onclick="alert('Accounts are managed in the Supabase dashboard under Authentication. A new sign-in also needs a matching row in the profiles table carrying their role and gate.')">
+            ${Icons['plus'](14)} Manage Accounts
           </button>
         </div>
 
@@ -52,7 +52,7 @@ export default class UsersView {
               </tr>
             </thead>
             <tbody>
-              ${users.length === 0 ? '<tr><td colspan="5" class="empty">No users found. Check Google Sheets.</td></tr>' : ''}
+              ${users.length === 0 ? '<tr><td colspan="5" class="empty">No users found.</td></tr>' : ''}
               ${users.map(u => `
                 <tr>
                   <td>

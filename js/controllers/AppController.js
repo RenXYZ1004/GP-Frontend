@@ -1,4 +1,5 @@
 import AppModel from '../models/AppModel.js';
+import EmailService from '../services/EmailService.js';
 import AppView, { ROLE_PERMISSIONS, setButtonLoading } from '../views/AppView.js';
 import DashboardController from './pages/DashboardController.js';
 import LogsController from './pages/LogsController.js';
@@ -55,6 +56,20 @@ export default class AppController {
       return;
     }
 
+    // The cached payload only decides what gets drawn. Confirm with the
+    // server that the session is still real, and that this person still holds
+    // the role the cache claims — someone demoted or deactivated should lose
+    // access on their next load, not at some cache expiry.
+    //
+    // Deliberately not awaited: the UI renders from cache immediately, which
+    // is what makes the app usable on a slow gate connection. If the check
+    // comes back negative the redirect happens a moment later; if it cannot
+    // reach the server at all, the session stands and the app works offline.
+    this.model.restoreSession().then((user) => {
+      if (!user) this.redirectToLogin('Your session has expired.');
+      else this.view.renderSidebar(this.model);
+    }).catch(() => { /* offline — handled inside restoreSession */ });
+
     // Check hash for direct link, default to dashboard
     const hashPage = window.location.hash.replace('#', '');
     const startPage = hashPage || 'dashboard';
@@ -71,49 +86,9 @@ export default class AppController {
     this.initSync();
   }
   async sendParentEmail(params) {
-    // '/api/send-email' is the serverless function used in production.
-    // './api/send-email.php' is the legacy XAMPP endpoint some local installs
-    // still have; it is tried only as a fallback, because that PHP file is not
-    // part of this repository and returns 404 on a plain checkout.
-    const endpoints = ['/api/send-email', './api/send-email.php'];
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      let response;
-      try {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params),
-          credentials: 'same-origin'
-        });
-      } catch (err) {
-        lastError = err;          // network down — try the next endpoint
-        continue;
-      }
-
-      // Endpoint simply is not deployed here: fall through to the next one.
-      if (response.status === 404 || response.status === 405) {
-        lastError = new Error(`Email API not available at ${endpoint} (HTTP ${response.status})`);
-        continue;
-      }
-
-      let result = null;
-      try { result = await response.json(); } catch (_) { }
-      if (!response.ok || !result || !result.success) {
-        // `error` carries the specific reason (Google's own text on a 502);
-        // `message` is the generic "Email could not be sent." Preferring
-        // `message` here meant every send failure looked identical and the
-        // real cause never reached the screen or the log.
-        throw new Error(
-          (result && (result.error || result.message)) ||
-          `Email Api returned HTTP ${response.status}`
-        );
-      }
-      return result;
-    }
-
-    throw lastError || new Error('No email endpoint is available.');
+    // Endpoint selection, the bearer token and error extraction live in
+    // EmailService, which posts to the Cloud Function on its own origin.
+    return EmailService.send(params);
   }
   async processEmailQueue() {
     if (!this.model.emailQueue || this.model.emailQueue.length === 0) return;

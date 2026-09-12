@@ -1,13 +1,14 @@
-import SheetsService from '../services/SheetsService.js';
-import { uploadPhotoLocally, hashPassword } from '../utils.js';
+import ApiService from '../services/ApiService.js';
+import AuthService from '../services/AuthService.js';
+import { uploadPhotoLocally } from '../utils.js';
 import { SESSION_TIMEOUT_MS } from '../config.js';
 
 // ════════════════════════════════════════════════════════════════
-// AppModel — Data Layer with Google Sheets + localStorage Cache
+// AppModel — Data Layer with the gatepass API + localStorage Cache
 // ════════════════════════════════════════════════════════════════
 // Data flows:
-//   READ:  Google Sheet → localStorage cache → Views
-//   WRITE: Views → Google Sheet + localStorage cache
+//   READ:  API → localStorage cache → Views
+//   WRITE: Views → API + localStorage cache
 //   OFFLINE: Falls back to localStorage cache automatically
 // ════════════════════════════════════════════════════════════════
 
@@ -96,13 +97,13 @@ export default class AppModel {
   }
 
   // ════════════════════════════════════════════════════════════
-  // SYNC ENGINE — Pulls fresh data from Google Sheets
+  // SYNC ENGINE — Pulls fresh data from the gatepass API
   // ════════════════════════════════════════════════════════════
 
   async syncFromSheet() {
     this.syncStatus = 'syncing';
     try {
-      const data = await SheetsService.getAll();
+      const data = await ApiService.getAll();
 
       // Change detection: compare hash before updating
       const newHash = this.computeDataHash(data);
@@ -135,12 +136,25 @@ export default class AppModel {
     }
   }
 
-  // ── Field Mapping: Sheet → Frontend ───────────────────────
+  // ── Field Mapping: API → Frontend ─────────────────────────
+  //
+  // Grade and section share one stored column, `GradeAndSection`, holding
+  // "Grade 7 - Determination" — or just "Grade 7" when no section is on file,
+  // which is the case for all but one existing record.
+  //
+  // This used to read s.Grade and s.Section. Neither column has ever existed:
+  // the backend returns whatever headers the store actually has, so both were
+  // always undefined and every student rendered with an empty grade. Reading
+  // the column that exists is the fix; the old names are still accepted so a
+  // payload that happens to carry them is not ignored.
   mapStudentFromSheet(s) {
-    const grade = String(s.Grade || '');
-    const section = String(s.Section || '');
+    const combined = String(s.GradeAndSection || '');
+    const [parsedGrade, parsedSection] = combined.split(' - ');
+
+    const grade = String(s.Grade || parsedGrade || '').trim();
+    const section = String(s.Section || parsedSection || '').trim();
     const fullSection = section ? `${grade} - ${section}` : grade;
-    
+
     return {
       id: String(s.PassID || ''),
       pgp: String(s.PassID || ''),
@@ -150,9 +164,9 @@ export default class AppModel {
       section: section,
       fullSection,
       schoolYear: String(s.SchoolYear || ''),
-      // The sheet column is spelled 'QRtoken'; older code wrote 'QRToken'.
-      // Accept either so approvals that mint a token are not silently lost.
-      qrToken: String(s.QRToken || s.QRtoken || ''),
+      // Stored as 'QRtoken'. 'QRToken' is accepted because older code wrote
+      // that spelling, and dropping it would invalidate a live pass.
+      qrToken: String(s.QRtoken || s.QRToken || ''),
       arrangements: s.Arrangements || '',
       preferredGate: s.PreferredGate || '',
       vehicleDetails: s.VehicleDetails || '',
@@ -168,14 +182,21 @@ export default class AppModel {
     };
   }
 
-  // ── Field Mapping: Frontend → Sheet ───────────────────────
+  // ── Field Mapping: Frontend → API ─────────────────────────
+  //
+  // This used to emit Grade and Section as separate keys. No such columns
+  // exist, and the backend builds a row from the columns it knows, so both
+  // were discarded on every write — a student's grade and section never
+  // persisted at all. They are joined into the column that does exist.
   mapStudentToSheet(s) {
+    const grade = s.grade || '';
+    const section = s.section || '';
+
     return {
       PassID: s.pgp || s.id || '',
       StudentID: s.studid || '',
       CompleteName: s.name || '',
-      Grade: s.grade || '',
-      Section: s.section || '',
+      GradeAndSection: section ? `${grade} - ${section}` : grade,
       SchoolYear: s.schoolYear || '',
       Arrangements: s.arrangements || '',
       ParentName: s.parentName || '',
@@ -191,8 +212,10 @@ export default class AppModel {
       Photo: s.photo === undefined ? undefined : (s.photo || ''),
       Status: s.status || 'active',
       FaceDescriptor: s.faceDescriptor || '',
-      QRToken: s.qrToken || '',
-      // Same value under the sheet's actual column name.
+      // One key, one column. The duplicate 'QRToken' spelling that used to sit
+      // beside this was writing to nothing, because no such column existed —
+      // which is why the scanner's token check in AppController never had a
+      // token to check against.
       QRtoken: s.qrToken || ''
     };
   }
@@ -289,13 +312,13 @@ export default class AppModel {
     const remaining = [];
     for (const item of this.writeQueue) {
       try {
-        if (item.action === 'addStudent') await SheetsService.addStudent(item.data);
-        else if (item.action === 'addLog') await SheetsService.addLog(item.data);
-        else if (item.action === 'addTGP') await SheetsService.addTGP(item.data);
-        else if (item.action === 'updateTGPStatus') await SheetsService.updateTGPStatus(item.data.id, item.data.status);
-        else if (item.action === 'updateStudentStatus') await SheetsService.updateStudentStatus(item.data.id, item.data.status);
-        else if (item.action === 'updateStudent') await SheetsService.updateStudent(item.data);
-        else if (item.action === 'removeStudent') await SheetsService.removeStudent(item.data.id);
+        if (item.action === 'addStudent') await ApiService.addStudent(item.data);
+        else if (item.action === 'addLog') await ApiService.addLog(item.data);
+        else if (item.action === 'addTGP') await ApiService.addTGP(item.data);
+        else if (item.action === 'updateTGPStatus') await ApiService.updateTGPStatus(item.data.id, item.data.status);
+        else if (item.action === 'updateStudentStatus') await ApiService.updateStudentStatus(item.data.id, item.data.status);
+        else if (item.action === 'updateStudent') await ApiService.updateStudent(item.data);
+        else if (item.action === 'removeStudent') await ApiService.removeStudent(item.data.id);
         console.log('Queued write sent:', item.action);
         // Add delay to prevent rate limiting from backend when processing large queues
         await new Promise(resolve => setTimeout(resolve, 800));
@@ -338,7 +361,7 @@ export default class AppModel {
     // Write to Sheet
     const sheetData = this.mapStudentToSheet(student);
     try {
-      await SheetsService.addStudent(sheetData);
+      await ApiService.addStudent(sheetData);
     } catch (err) {
       console.error('Failed to write student to Sheet, queuing...', err);
       await this.queueWrite('addStudent', sheetData);
@@ -350,7 +373,7 @@ export default class AppModel {
     writeCache('pgp_students', withoutInlinePhotos(this.students));
 
     try {
-      await SheetsService.removeStudent(id);
+      await ApiService.removeStudent(id);
     } catch (err) {
       console.error('Failed to remove student from Sheet, queuing...', err);
       await this.queueWrite('removeStudent', { id });
@@ -374,7 +397,7 @@ export default class AppModel {
       // Always send the pgp value (= PassID in Sheet) for reliable backend lookup
       const sheetId = student.pgp || student.id;
       try {
-        await SheetsService.updateStudentStatus(sheetId, status);
+        await ApiService.updateStudentStatus(sheetId, status);
       } catch (err) {
         console.error('Failed to update status on Sheet, queuing...', err);
         await this.queueWrite('updateStudentStatus', { id: sheetId, status });
@@ -402,7 +425,7 @@ export default class AppModel {
 
 
     try {
-      await SheetsService.updateStudent(sheetData);
+      await ApiService.updateStudent(sheetData);
     } catch (err) {
       console.error('Failed to update student on Sheet, queuing...', err);
       await this.queueWrite('updateStudent', sheetData);
@@ -422,7 +445,7 @@ export default class AppModel {
     writeCache('pgp_logs', this.exitLogs);
 
     try {
-      await SheetsService.addLog(logEntry);
+      await ApiService.addLog(logEntry);
     } catch (err) {
       console.error('Failed to write log to Sheet, queuing...', err);
       await this.queueWrite('addLog', logEntry);
@@ -457,7 +480,7 @@ export default class AppModel {
     writeCache('pgp_tgp', this.tgp);
 
     try {
-      await SheetsService.addTGP(tgpEntry);
+      await ApiService.addTGP(tgpEntry);
     } catch (err) {
       console.error('Failed to write TGP to Sheet, queuing...', err);
       await this.queueWrite('addTGP', tgpEntry);
@@ -471,7 +494,7 @@ export default class AppModel {
       writeCache('pgp_tgp', this.tgp);
 
       try {
-        await SheetsService.updateTGPStatus(id, status);
+        await ApiService.updateTGPStatus(id, status);
       } catch (err) {
         console.error('Failed to update TGP status on Sheet, queuing...', err);
         await this.queueWrite('updateTGPStatus', { id, status });
@@ -490,59 +513,99 @@ export default class AppModel {
   async addGate(gate) {
     this.gates.push(gate);
     writeCache('pgp_gates', this.gates);
-    await SheetsService.addGate(this.mapGateToSheet(gate));
+    await ApiService.addGate(this.mapGateToSheet(gate));
   }
 
   async updateGate(gate) {
     const idx = this.gates.findIndex(g => g.id === gate.id);
     if (idx !== -1) this.gates[idx] = gate;
     writeCache('pgp_gates', this.gates);
-    await SheetsService.updateGate(this.mapGateToSheet(gate));
+    await ApiService.updateGate(this.mapGateToSheet(gate));
   }
 
   async removeGate(id) {
     this.gates = this.gates.filter(g => g.id !== id);
     writeCache('pgp_gates', this.gates);
-    await SheetsService.removeGate(id);
+    await ApiService.removeGate(id);
   }
 
   // ════════════════════════════════════════════════════════════
-  // AUTHENTICATION — Now checks against users from Google Sheet
+  // AUTHENTICATION — Supabase Auth
   // ════════════════════════════════════════════════════════════
 
+  /**
+   * Sign in. Supabase verifies the password and returns a signed JWT; the
+   * API then resolves the role server-side from that token.
+   *
+   * The sheet-backed predecessor downloaded every user row — password hashes
+   * included — and compared them in client JS, so any user could read the
+   * whole table from DevTools and the role was whatever the client claimed.
+   * The browser now never sees a hash and never decides its own role.
+   */
   async authenticateUser(username, password) {
-    // Try to fetch fresh users from sheet first
+    // AuthService owns the whole exchange: it signs in, reads the profile row
+    // keyed on the account id, and refuses an account with no profile or an
+    // inactive one — cleaning up the session in either case, so a half
+    // authenticated state cannot be left behind.
+    const profile = await AuthService.signIn(username, password);
+
+    const userPayload = {
+      username: profile.username,
+      name: profile.name,
+      role: profile.role,
+      gate: profile.gate || '',
+      accountId: profile.accountId,
+      loginTime: new Date().toISOString(),
+      lastActivity: Date.now()
+    };
+
+    this.currentUser = userPayload;
+    localStorage.setItem('pgp_session', JSON.stringify(userPayload));
+    sessionStorage.setItem('pgp_browser_alive', '1');
+    return userPayload;
+  }
+
+  /**
+   * Re-establish the app-level user from a live Appwrite session.
+   *
+   * The cached pgp_session payload only drives what the UI draws. This is the
+   * check that matters on load: if Appwrite no longer recognises the session,
+   * the cached copy is stale and the user is signed out. Permissions are
+   * enforced server-side regardless, so a tampered cache changes the menu and
+   * nothing else.
+   */
+  async restoreSession() {
+    let profile;
     try {
-      this.users = await SheetsService.getUsers();
-      writeCache('pgp_users', this.users);
+      profile = await AuthService.loadProfile();
     } catch (err) {
-      console.warn('Could not fetch users from Sheet, using cached data');
-      // users already loaded from localStorage cache
+      // OfflineError. The cached session stands: a gate terminal that loses
+      // its connection must keep scanning, and the queued writes flush when
+      // it comes back. Only the server saying no ends a session.
+      console.warn('[AppModel] Could not revalidate the session offline.', err);
+      return this.currentUser;
     }
 
-    const hashedPassword = await hashPassword(password);
-    
-    const user = this.users.find(u =>
-      u.username === username && 
-      (u.password === hashedPassword || u.password === password) && // Support transition
-      (!u.status || u.status.toLowerCase() === 'active')
-    );
-
-    if (user) {
-      const userPayload = {
-        username: user.username,
-        name: user.name,
-        role: user.role,
-        gate: user.gate || '',
-        loginTime: new Date().toISOString(),
-        lastActivity: Date.now()
-      };
-      this.currentUser = userPayload;
-      localStorage.setItem('pgp_session', JSON.stringify(userPayload));
-      sessionStorage.setItem('pgp_browser_alive', '1');
-      return userPayload;
+    if (!profile || String(profile.status).toLowerCase() !== 'active') {
+      this.logout();
+      return null;
     }
-    return null;
+
+    const cached = readCache('pgp_session', {}) || {};
+    const userPayload = {
+      username: profile.username,
+      name: profile.name,
+      role: profile.role,
+      gate: profile.gate || '',
+      accountId: profile.accountId,
+      loginTime: cached.loginTime || new Date().toISOString(),
+      lastActivity: Date.now()
+    };
+
+    this.currentUser = userPayload;
+    localStorage.setItem('pgp_session', JSON.stringify(userPayload));
+    sessionStorage.setItem('pgp_browser_alive', '1');
+    return userPayload;
   }
 
   login(userPayload) {
@@ -557,6 +620,11 @@ export default class AppModel {
     this.currentUser = null;
     localStorage.removeItem('pgp_session');
     sessionStorage.removeItem('pgp_browser_alive');
+
+    // Drop the Supabase tokens too, or the next sign-in would silently reuse
+    // the previous user's session. Fire-and-forget: logout must not be able
+    // to fail, least of all at a gate terminal with no connectivity.
+    AuthService.signOut().catch(() => {});
   }
 
   // ── Theme / Sidebar / Session ─────────────────────────────

@@ -1,5 +1,5 @@
 import Dialog from '../../services/Dialog.js';
-import SheetsService from '../../services/SheetsService.js';
+import ApiService from '../../services/ApiService.js';
 import { generatePGP, escapeHTML, generateQRToken } from '../../utils.js';
 import SettingsView from '../../views/SettingsView.js';
 
@@ -266,7 +266,7 @@ export default class SettingsController {
       btnRegen.addEventListener('click', async () => {
         const confirmed = await Dialog.confirm(
           'Regenerate All Pass IDs & Tokens',
-          'This will assign standardized Pass IDs (e.g., 26EMP07-001) and secure QR Tokens to all flagged students. The changes will be saved to Google Sheets. Continue?',
+          'This will assign standardized Pass IDs (e.g., 26EMP07-001) and secure QR Tokens to all flagged students. The changes will be saved to the database. Continue?',
           { confirmText: 'Yes, Regenerate', type: 'warning' }
         );
         if (!confirmed) return;
@@ -295,13 +295,13 @@ export default class SettingsController {
 
             const sheetData = controller.model.mapStudentToSheet(student);
 
-            // Step 2: Push to Google Sheets (Update if same ID, Replace if new ID)
+            // Step 2: Push to the API (update if same ID, replace if new ID)
             if (newPgp !== oldPgp) {
-              try { await SheetsService.removeStudent(oldPgp); } catch (e) {}
-              await SheetsService.addStudent(sheetData);
+              try { await ApiService.removeStudent(oldPgp); } catch (e) {}
+              await ApiService.addStudent(sheetData);
             } else {
               // We just added a qrToken, the ID is the same, so just do an update
-              await SheetsService.updateStudent(sheetData);
+              await ApiService.updateStudent(sheetData);
             }
 
             updated++;

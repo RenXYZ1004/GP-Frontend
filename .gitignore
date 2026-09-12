@@ -27,3 +27,9 @@ preview_mobile.html
 response.json
 response_new.json
 response*.json
+
+# ── Backend ─────────────────────────────────────────────────────
+# The Cloud Functions and Supabase schema live in the GP-Backend project,
+# not here. This repo is the Vercel frontend only.
+.firebase/
+firebase-debug.log

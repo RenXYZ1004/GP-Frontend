@@ -1,4 +1,0 @@
-Options -Indexes
-<FilesMatch "^(email-config\.php|gmail-oauth-token\.json)$">
-    Require all denied
-</FilesMatch>

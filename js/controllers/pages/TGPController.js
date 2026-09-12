@@ -1,5 +1,6 @@
 import { resolvePhotoUrl, hasPhoto, generatePaginationHTML, bindPaginationEvents, generateQRToken, waitForImages, compressImageToBlob, uploadPhotoLocally, renderQRCodeInto } from '../../utils.js';
 import Dialog from '../../services/Dialog.js';
+import EmailService from '../../services/EmailService.js';
 import { setButtonLoading } from '../../views/AppView.js';
 
 export default class TGPController {
@@ -387,29 +388,23 @@ export default class TGPController {
           const sName = student ? student.name : (tgp.name || 'Unknown Student');
           const sGrade = student ? `${student.grade}${student.section ? ' - ' + student.section : ''}` : '';
 
-          const res = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email_type: 'tgp_delivery',
-              to_email: tgp.studentEmail,
-              to_name: tgp.requester || '',
-              student_name: sName,
-              grade: sGrade,
-              tgp_no: tgp.id,
-              valid_date: tgp.validDate,
-              gate_name: tgp.gate,
-              attachment_base64: base64,
-              attachment_name: `TGP_${tgp.id}.png`
-            })
+          // EmailService attaches the session token and throws on failure
+          // rather than returning one, so the catch below reports both a
+          // network error and a rejected send in the same place.
+          await EmailService.send({
+            email_type: 'tgp_delivery',
+            to_email: tgp.studentEmail,
+            to_name: tgp.requester || '',
+            student_name: sName,
+            grade: sGrade,
+            tgp_no: tgp.id,
+            valid_date: tgp.validDate,
+            gate_name: tgp.gate,
+            attachment_base64: base64,
+            attachment_name: `TGP_${tgp.id}.png`
           });
 
-          const result = await res.json();
-          if (result.success) {
-            controller.view.showToast(`Pass emailed to ${tgp.studentEmail}`);
-          } else {
-            controller.view.showToast(`Email failed: ${result.message || 'Unknown error'}`);
-          }
+          controller.view.showToast(`Pass emailed to ${tgp.studentEmail}`);
         } catch (err) {
           controller.view.showToast(`Email failed: ${err.message || String(err)}`);
         } finally {

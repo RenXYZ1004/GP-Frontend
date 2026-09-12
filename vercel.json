@@ -2,12 +2,6 @@
   "version": 2,
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
-    {
-      "source": "/api/send-email.php",
-      "destination": "/api/mailer"
-    }
-  ],
   "functions": {
     "api/*.js": {
       "maxDuration": 30

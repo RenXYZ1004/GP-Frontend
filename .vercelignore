@@ -1,36 +1,26 @@
 # Never upload local credentials or archives
 api/gmail-oauth-token.json
-api/email-config.local.php
 .env
 .env.*
 *.rar
 *.zip
 .git
 
-# ── Database dumps ──────────────────────────────────────────────
-# These are recorded getAll/getUsers responses. They hold every student
-# record (names, parent emails, mobile numbers) and every staff account
-# with its password. They were being served publicly at /response.json.
-# They must never reach a deployment.
-response.json
-response_new.json
-response*.json
-
 # ── Internal documentation ──────────────────────────────────────
-# Backend source, the internal email/SMTP security audit and the
-# changelog were all publicly readable. None of them belong on the
-# public site, and the audit in particular lists known weak points.
-Code.gs
+# The changelog and the internal email/SMTP audit were both publicly
+# readable. Neither belongs on the public site, and the audit in
+# particular lists known weak points.
 EMAIL_SMTP_AUDIT.md
 CHANGELOG.md
+MIGRATION.md
 README.md
 README-PHOTO-FIX.txt
+PHOTO-BLOB-FIX.md
 Vercel-Environment-Variables.txt
 
 # ── Development scratch files ───────────────────────────────────
+# The reference layout for the pass card design, cited by js/utils.js.
 id_preview_new.html
-# Duplicate of SISC_logo.png, which the e-mail templates use and which stays.
-SISC LOGO.png
 
 # NOT excluded, despite looking like scratch files: PGP_Card_*.png are the
 # two "Sample Gatepass" images on the landing page (index.html). Both show

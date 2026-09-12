@@ -171,7 +171,7 @@ export default class SettingsView {
               <ul style="font-size: 12px; color: var(--text2); margin: 0; padding-left: 18px; line-height: 1.8;">
                 <li>Scans all students for IDs that <strong>don't match</strong> the new format (<code>26A07-001</code>)</li>
                 <li>Generates a new PGP ID based on each student's <strong>grade</strong> and <strong>section</strong></li>
-                <li>Updates both the local cache <strong>and</strong> the Google Sheet</li>
+                <li>Updates both the local cache <strong>and</strong> the database</li>
                 <li>All QR codes will automatically match the new IDs</li>
               </ul>
             </div>

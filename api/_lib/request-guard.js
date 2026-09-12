@@ -1,14 +1,16 @@
 /**
- * Shared caller check for the public serverless endpoints.
+ * Caller check for /api/upload-photo.
  *
- * /api/send-email, /api/mailer and /api/upload-photo sit on public URLs with
- * nothing in front of them. The first two can put a message in any inbox from
- * the school's own Gmail address; the third writes into the school's Blob
- * store. Neither had any caller check at all, so anyone who knew the URL could
- * send branded mail as the school or fill the storage quota.
+ * It once also guarded /api/send-email and /api/mailer. Those moved to Cloud
+ * Functions in the GP-Backend project, where they now sit behind a verified
+ * Supabase session — the "real fix" this comment used to describe as pending.
+ * Photo upload stayed on Vercel because the photos themselves live in Vercel
+ * Blob, so this guard stayed with it.
  *
- * There is no server-side session in this app to check against, so what the
- * guard can check without one is:
+ * The endpoint sits on a public URL with nothing in front of it and writes
+ * into the school's Blob store, so without a check anyone who knew the URL
+ * could fill the storage quota. There is no server-side session on this side
+ * of the app to check against, so what the guard can check without one is:
  *
  *   1. the request came from a page served by this same deployment, and
  *   2. one caller cannot hammer the endpoint.
@@ -16,9 +18,9 @@
  * WHAT THIS IS NOT: authentication. A crafted request can set any Origin it
  * likes, and the rate limit lives in one lambda instance's memory, so it is
  * per-instance and resets on a cold start. This raises the cost of drive-by
- * and browser-based abuse; it does not make the endpoint private. The real
- * fix is a signed caller token, which needs a change to how the client
- * authenticates.
+ * and browser-based abuse; it does not make the endpoint private. Making it
+ * private would mean having the browser send its Supabase token here too, and
+ * verifying it the way the backend does.
  *
  * Origin handling is deliberately conservative so it cannot break a working
  * deployment: a request whose Origin/Referer is present but foreign is

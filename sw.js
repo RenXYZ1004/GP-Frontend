@@ -11,7 +11,7 @@
 //     no longer abort the whole install (cache.addAll is all-or-nothing).
 // ════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'pgp-cache-v1.4.5';
+const CACHE_NAME = 'pgp-cache-v3.0.0';
 
 // Files that make up the app shell — always revalidated against the network.
 //
@@ -36,7 +36,10 @@ const APP_SHELL = [
 
   // Models & Services
   './js/models/AppModel.js',
-  './js/services/SheetsService.js',
+  './js/services/appwrite.js',
+  './js/services/ApiService.js',
+  './js/services/AuthService.js',
+  './js/services/EmailService.js',
   './js/services/FaceBiometrics.js',
   './js/services/Dialog.js',
 
@@ -66,6 +69,7 @@ const APP_SHELL = [
 
 // Static assets — safe to serve straight from cache.
 const STATIC_ASSETS = [
+  './js/lib/appwrite.js',
   './js/lib/jsQR.min.js',
   './logo.png',
   './SISC_logo.png',
@@ -126,7 +130,10 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
 
   // Never intercept the Sheets backend or the Apps Script application form.
-  if (url.hostname.includes('script.google.com')) return;
+  // Gate scans and sign-ins must always hit the network — a cached exit
+  // log or auth response would be actively wrong.
+  if (url.hostname.includes('appwrite.io')) return;
+  if (url.hostname.includes('appwrite.network')) return;
   // Matches both the clean route and the extension, since cleanUrls serves
   // this page at /newForm and redirects /newForm.html to it.
   if (url.pathname.endsWith('/newForm') || url.pathname.endsWith('/newForm.html')) return;

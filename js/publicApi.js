@@ -112,8 +112,11 @@ export function submitTGP(data) {
  * @returns {Promise<string[]>} gate names, or [] if none are configured
  */
 export async function listGates() {
+  // The route is /tablesdb/…, not /databases/… — the latter is the older
+  // collections API and answers 404 here. The SDK builds this itself; this
+  // file hand-rolls it to avoid loading 540 KB on a parent's phone.
   const url = `${String(APPWRITE_ENDPOINT).replace(/\/$/, '')}` +
-    `/databases/${APPWRITE_DATABASE_ID}/tables/gates/rows`;
+    `/tablesdb/${APPWRITE_DATABASE_ID}/tables/gates/rows`;
 
   const res = await fetch(url, {
     headers: { 'X-Appwrite-Project': APPWRITE_PROJECT_ID },

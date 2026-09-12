@@ -8,16 +8,16 @@ GMAIL_USER_EMAIL = lux_maingate@southville.edu.ph
 
 Optional:
 GMAIL_FROM_NAME = Southville Gatepass System
-APP_BASE_URL = https://e-gate-pass-theta.vercel.app
+APP_BASE_URL = https://gp-frontend-alpha.vercel.app
 
 Required only when using the OAuth helper endpoints to generate a new refresh token:
-GOOGLE_REDIRECT_URI = https://e-gate-pass-theta.vercel.app/api/oauth-callback
+GOOGLE_REDIRECT_URI = https://gp-frontend-alpha.vercel.app/api/oauth-callback
 
 Google Cloud Console > OAuth Client > Authorized redirect URI:
-https://e-gate-pass-theta.vercel.app/api/oauth-callback
+https://gp-frontend-alpha.vercel.app/api/oauth-callback
 
 OAuth authorization URL after deployment:
-https://e-gate-pass-theta.vercel.app/api/oauth-start
+https://gp-frontend-alpha.vercel.app/api/oauth-start
 
 Use the same redirect URI exactly in Google Cloud and in GOOGLE_REDIRECT_URI.
 
